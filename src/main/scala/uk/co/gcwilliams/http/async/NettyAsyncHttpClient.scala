@@ -1,6 +1,7 @@
 package uk.co.gcwilliams.http.async
 
 import java.net.URI
+import javax.net.ssl.SSLContext
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.PooledByteBufAllocator
@@ -8,6 +9,7 @@ import io.netty.channel._
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.handler.codec.http._
+import io.netty.handler.ssl.SslHandler
 import io.netty.handler.timeout.{ReadTimeoutHandler, WriteTimeoutHandler}
 import io.netty.util.ReferenceCountUtil
 
@@ -23,6 +25,11 @@ private [async] object NettyAsyncHttpClient {
   private val Accept = HttpHeaders.newEntity("Accept")
 
   private val Json = HttpHeaders.newEntity("application/json")
+
+  val context: SSLContext = SSLContext.getInstance("TLS")
+  context.init(null, null, null)
+  private val ENGINE = context.createSSLEngine
+  ENGINE.setUseClientMode(true)
 
 }
 
@@ -48,10 +55,10 @@ private [async] class NettyAsyncHttpClient(
   bootstrap.channel(classOf[NioSocketChannel])
   bootstrap.handler(new ChannelInitializer[NioSocketChannel]() {
     override def initChannel(c: NioSocketChannel): Unit = {
-        c.pipeline().addLast(new WriteTimeoutHandler(writeTimeoutSeconds))
-        c.pipeline().addLast(new ReadTimeoutHandler(readTimeoutSeconds))
-        c.pipeline().addLast(new HttpClientCodec())
-        c.pipeline().addLast(new HttpObjectAggregator(Integer.MAX_VALUE))
+        c.pipeline().addLast(classOf[WriteTimeoutHandler].getName, new WriteTimeoutHandler(writeTimeoutSeconds))
+        c.pipeline().addLast(classOf[ReadTimeoutHandler].getName, new ReadTimeoutHandler(readTimeoutSeconds))
+        c.pipeline().addLast(classOf[HttpClientCodec].getName, new HttpClientCodec())
+        c.pipeline().addLast(classOf[HttpObjectAggregator].getName, new HttpObjectAggregator(Integer.MAX_VALUE))
     }
   })
 
@@ -81,12 +88,16 @@ private [async] class NettyAsyncHttpClient(
         override def operationComplete(future: ChannelFuture): Unit = {
           val channel = future.channel()
           if ("https" == uri.getScheme) {
-            channel.pipeline.addBefore("write-timeout", "ssl", new SSLClientHandler)
+            channel.pipeline.addBefore(
+              classOf[WriteTimeoutHandler].getName,
+              classOf[SslHandler].getName,
+              new SslHandler(NettyAsyncHttpClient.ENGINE)
+            )
           }
           channel.pipeline().addLast(new HttpRequestHandler(reject))
           if (future.isSuccess) {
-            channel.writeAndFlush(request)
             channel.pipeline().addLast(new HttpResponseHandler(url, resolve, reject))
+            channel.writeAndFlush(request)
           } else {
             future.channel().pipeline().fireExceptionCaught(future.cause())
           }
