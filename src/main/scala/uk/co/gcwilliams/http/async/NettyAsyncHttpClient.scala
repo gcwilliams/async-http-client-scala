@@ -88,7 +88,7 @@ private [async] class NettyAsyncHttpClient(
         override def operationComplete(future: ChannelFuture): Unit = {
           val channel = future.channel()
           if ("https" == uri.getScheme) {
-            channel.pipeline.addBefore(
+            channel.pipeline().addBefore(
               classOf[WriteTimeoutHandler].getName,
               classOf[SslHandler].getName,
               new SslHandler(NettyAsyncHttpClient.ENGINE)

@@ -11,10 +11,11 @@ object AsyncHttpClient {
   /**
    * Creates a new client
    *
+   * @param workerCount the worker count
    * @return the client
    */
-  def apply(): AsyncHttpClient = {
-    apply(10, 1000, 2, 2)
+  def apply(workerCount:Int): AsyncHttpClient = {
+    apply(workerCount, 1000, 2, 2)
   }
 
   /**
