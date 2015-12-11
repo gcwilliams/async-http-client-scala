@@ -8,5 +8,6 @@ package uk.co.gcwilliams.http.async
 class AsyncHttpMessage(
   val requestUrl: String,
   val statusCode: Int,
-  val response: Array[Byte]
+  val headers: Seq[(String, String)],
+  val body: Array[Byte]
 )

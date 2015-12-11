@@ -13,6 +13,8 @@ import io.netty.handler.ssl.SslHandler
 import io.netty.handler.timeout.{ReadTimeoutHandler, WriteTimeoutHandler}
 import io.netty.util.ReferenceCountUtil
 
+import scala.collection.JavaConversions._
+
 /**
  * The netty async HTTP client
  *
@@ -82,7 +84,10 @@ private [async] class NettyAsyncHttpClient(
       request.headers().set(NettyAsyncHttpClient.Host, uri.getHost)
       request.headers().set(NettyAsyncHttpClient.Accept, NettyAsyncHttpClient.Json)
 
-      val channelFuture = bootstrap.connect(uri.getHost, if (uri.getPort > -1) uri.getPort else 80)
+      val channelFuture = bootstrap.connect(uri.getHost, uri.getScheme match {
+        case "https" => if (uri.getPort > -1) uri.getPort else 443
+        case _ => if (uri.getPort > -1) uri.getPort else 80
+      })
 
       channelFuture.addListener(new ChannelFutureListener() {
         override def operationComplete(future: ChannelFuture): Unit = {
@@ -143,6 +148,7 @@ private class HttpResponseHandler(
       resolve(new AsyncHttpMessage(
         requestUrl,
         msg.getStatus.code(),
+        msg.headers().iterator().map(header =>(header.getKey, header.getValue)).toSeq,
         contents
       ))
     } finally {
